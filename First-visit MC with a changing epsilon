@@ -94,7 +94,19 @@ class MC_agent(Ready):
         # print('counts:', self.counts)
         return self.q_table
 
-    def agent_step(self,obs):
+    def normalization(self,m_t):
+        """
+        normalize m_t to get epsilon
+        log-transformation + 0-1 normalization
+        :param m_t: money_left / time_left
+        :return:
+        """
+        log_mt = np.log(m_t)
+        mt_norm = (log_mt + 1.5404) / (4.7875 + 1.5404) # max_log_mt,min_log_mt for all ()pairs
+        return mt_norm
+
+
+    def agent_step(self,obs,epsilon):
         """
         :param obs: list [topic, left_money]
         :return:
@@ -118,7 +130,7 @@ class MC_agent(Ready):
         max_q = max(qs)
         max_acts = [idx for idx, act_val in enumerate(qs) if act_val == max_q]
 
-        if random.random() < self.epsilon:
+        if random.random() < epsilon:
             return random.randint(0, 1)
         else:
             return random.choice(max_acts)
@@ -134,7 +146,7 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
 
     episodes_return = []
     average_returns = []
-    episodic_len = []
+    episodic_lens = []
 
     tjy_1 = []
     rewards_1 = 0
@@ -143,11 +155,11 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
         if money_left > 0:
             obs_t = []
             current_topic, current_click = sandbox.get_samples(path)
-            #sample = []
-            # sample.append(current_topic)
-            # sample.append(current_click)
+            sample = []
+            sample.append(current_topic)
+            sample.append(money_left)
             # print(sample)
-            current_action = init.rdm_pi()
+            current_action = agent.agent_step(sample,epsilon=0.1)
             current_reward, current_cost = sandbox.get_rewards(current_action,current_click)
             obs_t.append(current_topic)
             obs_t.append(money_left)
@@ -160,7 +172,7 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
             break
     episodes_return.append(rewards_1)
     average_returns.append(rewards_1/len(tjy_1))
-    episodic_len.append(len(tjy_1))
+    episodic_lens.append(len(tjy_1))
     qs_1 = agent.learn_q(tjy_1)
 
     # print(tjy_1)
@@ -183,7 +195,18 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
                 obs_epst.append(epst_topic)
                 obs_epst.append(money_left)
                 #print(obs_epst)
-                epst_action = agent.agent_step(obs_epst)
+                m_t = money_left / (500 - t)
+                # print(m_t)
+                eps = agent.normalization(m_t)
+                epst_action = agent.agent_step(obs_epst, epsilon=eps)
+                # if i <= 1000:
+                #     epst_action = agent.agent_step(obs_epst,epsilon=0.1)
+                # else:
+                #     m_t = money_left / (500 - t)
+                #     print(m_t)
+                #     eps = agent.normalization(m_t)
+                #     epst_action = agent.agent_step(obs_epst,epsilon=eps)
+
                 epst_reward, epst_cost = sandbox.get_rewards(epst_action, epst_click)
                 obs_epst.append(epst_action)
                 obs_epst.append(epst_reward)
@@ -195,24 +218,24 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
 
         episodes_return.append(rewards_eps)
         average_returns.append(rewards_eps/len(tjy_eps))
-        episodic_len.append(len(tjy_eps))
+        episodic_lens.append(len(tjy_eps))
         qs_eps = agent.learn_q(tjy_eps)
 
         # print(tjy_eps)
         # print(qs_eps)
         # print(len(qs_eps))
 
-    return episodes_return, average_returns, episodic_len
+    return episodes_return, average_returns, episodic_lens
 
 
 if __name__ == "__main__":
 
     random.seed(17)
-    episodes_return, average_returns, episodic_len = train(500,120,5000)
+    episodes_return, average_returns, episodic_lens = train(500,120,1000)
 
     print(episodes_return)
     print(average_returns)
-    print(episodic_len)
+    print(episodic_lens)
 
     plt.figure()
     plt.plot(episodes_return)
