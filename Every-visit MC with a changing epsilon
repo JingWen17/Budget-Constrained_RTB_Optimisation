@@ -8,24 +8,15 @@ import matplotlib.pyplot as plt
 
 class Ready:
     """
-    Get ready and start with first episode by randomly sample data and with random policy
+    Get ready and start with first episode by randomly sample data
     """
     def __init__(self, action_space: list, epsilon: float, **kwargs):
-        """
-        :param action_space:
-        :param epsilon:
-        :param kwargs:
-        """
+       
         self.action_space = action_space
         self.epsilon = epsilon
 
-        self.q_table = defaultdict(lambda: 0)
+        self.q_table = defaultdict(lambda: 0) 
         self.counts = defaultdict(lambda: 0)
-
-    def rdm_pi(self):
-        rdm_action = random.choice(self.action_space)
-        return rdm_action
-
 
 class generate_obs(Ready):
     """
@@ -63,7 +54,7 @@ class MC_agent(Ready):
 
     def learn_q(self,trajectory):
         """
-        :param trajectory: list of [topic,left_money,action,reward]
+        :param trajectory: list of [topic,remaining_budget,action,reward]
         :return:
         """
         updated_return = {}
@@ -73,11 +64,8 @@ class MC_agent(Ready):
         for i in range(len(trajectory)):
             rewards.append(trajectory[i][3])
 
-        #print(rewards, len(rewards))
-
         for j in range(len(trajectory)):
             state_i = tuple(trajectory[j][:3])
-            #print(state_i)
             G_i = sum(rewards[j:])
             if state_i not in updated_return:
                 updated_return[state_i] = G_i
@@ -86,9 +74,6 @@ class MC_agent(Ready):
                 updated_return[state_i] += G_i
                 episodic_counts[state_i] += 1
 
-        # print("update:", updated_return)
-        # print(len(updated_return))
-
         for z in updated_return.keys():
             if z not in self.counts.keys():
                 self.counts[z] = 0
@@ -96,35 +81,30 @@ class MC_agent(Ready):
             self.q_table[z] = (self.q_table[z] * self.counts[z] + updated_return[z]) /(self.counts[z] + episodic_counts[z])
             self.counts[z] += episodic_counts[z]
 
-        # print('counts:', self.counts)
-        # print(len(self.counts))
-
         return self.q_table
 
     def normalization(self,m_t):
         """
         normalize m_t to get epsilon
         log-transformation + 0-1 normalization
-        :param m_t: money_left / time_left
+        :param m_t: budget_left / time_left
         :return:
         """
         log_mt = np.log(m_t)
         mt_norm = (log_mt + 1.5404) / (4.7875 + 1.5404) # max_log_mt,min_log_mt for all ()pairs
+
         return mt_norm
 
     def agent_step(self,obs,epsilon):
         """
-        :param obs: list [topic, left_money]
+        :param obs: list [topic, remaining_budget]
         :return:
         """
         qs = []
         for i in range(len(self.action_space)):
             obs_ai = copy.copy(obs)
-            #print(obs_ai)
             ai = self.action_space[i]
-            #print(ai, type(ai))
             obs_ai.append(ai)
-            #print(obs_ai)
             obs_ai = tuple(obs_ai)
             if obs_ai in self.q_table.keys():
                 q_i = self.q_table[obs_ai]
@@ -142,10 +122,10 @@ class MC_agent(Ready):
             return random.choice(max_acts)
 
 
-def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
+def train(timesteps,budget, episodes): 
     init = Ready(action_space = [0,1], epsilon= 0.1)
 
-    path = './data_10_topics.csv'
+    path = './data.csv'
     sandbox = generate_obs(action_space = [0,1], epsilon= 0.1)
 
     agent = MC_agent(action_space=[0, 1], epsilon=0.1)
@@ -164,7 +144,6 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
             sample = []
             sample.append(current_topic)
             sample.append(money_left)
-            # print(sample)
             current_action = agent.agent_step(sample,epsilon=0.1)
             current_reward, current_cost = sandbox.get_rewards(current_action,current_click)
             obs_t.append(current_topic)
@@ -181,10 +160,6 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
     episodic_lens.append(len(tjy_1))
     qs_1 = agent.learn_q(tjy_1)
 
-    # print(tjy_1)
-    # print(qs_1)
-    # print(len(qs_1))
-
     for i in tqdm(range(episodes-1)):
         tjy_eps = []
         money_left = budget
@@ -197,21 +172,11 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
                 sample = []
                 sample.append(epst_topic)
                 sample.append(epst_click)
-                #print(sample)
                 obs_epst.append(epst_topic)
                 obs_epst.append(money_left)
-                #print(obs_epst)
                 m_t = money_left / (500 - t)
-                # print(m_t)
                 eps = agent.normalization(m_t)
                 epst_action = agent.agent_step(obs_epst, epsilon=eps)
-                # if i <= 1000:
-                #     epst_action = agent.agent_step(obs_epst,epsilon=0.1)
-                # else:
-                #     m_t = money_left / (500 - t)
-                #     # print(m_t)
-                #     eps = agent.normalization(m_t)
-                #     epst_action = agent.agent_step(obs_epst,epsilon=eps)
 
                 epst_reward, epst_cost = sandbox.get_rewards(epst_action, epst_click)
                 obs_epst.append(epst_action)
@@ -227,10 +192,6 @@ def train(timesteps,budget, episodes): # timesteps = 500, budget = 120
         episodic_lens.append(len(tjy_eps))
         qs_eps = agent.learn_q(tjy_eps)
 
-        # print(tjy_eps)
-        # print(qs_eps)
-        # print(len(qs_eps))
-
     return episodes_return, average_returns, episodic_lens
 
 
@@ -245,9 +206,6 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.plot(episodes_return)
-
-    plt.figure()
-    plt.plot(average_returns)
 
     plt.show()
 
