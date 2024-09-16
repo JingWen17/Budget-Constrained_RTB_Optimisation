@@ -147,7 +147,7 @@ def train(timesteps,budget, episodes):
                 if i == 0:
                     current_action = agent.agent_step(current_s, epsilon=0.1)
                 else:
-                    m_t = money_left / (500 - t)
+                    m_t = money_left / (timesteps - t)
                     eps = agent.normalization(m_t)
                     current_action = agent.agent_step(current_s, epsilon=eps)
 
